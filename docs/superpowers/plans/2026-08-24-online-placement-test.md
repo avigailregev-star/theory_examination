@@ -192,13 +192,13 @@ insert into lesson_slots (id, capacity) values
 מזהי המועדים (`a-mon-1500` וכו') מועתקים בדיוק מ-`SCHEDULE` הקיים בקובץ
 ה-HTML (שורה 7) — כך שהתפוסה תתאים למועדים האמיתיים שכבר מוצגים לתלמידים.
 
-- [ ] **Step 2: הרצת הסכימה (ידני, ב-Supabase SQL Editor)**
+- [ ] **Step 3: הרצת הסכימה (ידני, ב-Supabase SQL Editor)**
 
 להדביק את כל תוכן `supabase/migration.sql` ל-SQL Editor בפרויקט Supabase החדש וללחוץ Run.
 Expected: "Success. No rows returned" ואפשר לראות את הטבלאות `lesson_slots` (עם 12
 שורות) ו-`results` (ריקה) תחת Table Editor.
 
-- [ ] **Step 3: אימות ידני של המרוץ על תפוסה (ב-SQL Editor)**
+- [ ] **Step 4: אימות ידני של המרוץ על תפוסה (ב-SQL Editor)**
 
 ```sql
 update lesson_slots set capacity = 1, booked_count = 0 where id = 'd-wed-1415';
@@ -214,7 +214,7 @@ delete from results where id in ('test-1','test-2');
 update lesson_slots set capacity = 8, booked_count = 0 where id = 'd-wed-1415';
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add supabase/migration.sql
