@@ -29,8 +29,8 @@ module.exports = async function handler(req, res) {
   const { data, error } = await supabase.rpc('book_slot', { p_slot: row.slot, p_row: row });
   if (error) {
     if (error.message.includes('SLOT_FULL')) {
-      const { data: slots } = await supabase.from('lesson_slots').select('id, booked_count, capacity');
-      res.status(409).json({ error: 'SLOT_FULL', slots });
+      const { data: slots, error: slotsError } = await supabase.from('lesson_slots').select('id, booked_count, capacity');
+      res.status(409).json({ error: 'SLOT_FULL', slots: slotsError ? [] : slots });
       return;
     }
     res.status(500).json({ error: error.message });
