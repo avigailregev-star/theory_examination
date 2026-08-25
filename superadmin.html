@@ -8,7 +8,8 @@
 <input id="name" placeholder="שם תצוגה">
 <input id="slug" placeholder="slug (באנגלית, למשל hadera)">
 <input id="admin-password" type="password" placeholder="סיסמת ניהול ללקוח">
-<textarea id="schedule" rows="6" placeholder='מערכת שעות בפורמט JSON, למשל: {"1":[["a-mon-1500","יום ב׳","15:00–15:45","שם המורה"]]}'></textarea>
+<p>מערכת שעות — שורה אחת לכל מועד, בפורמט: <b>רמה, יום, שעה, שם המורה</b> (אפשר להוסיף הערה חופשית כחלק חמישי, למשל שם קורס). רמה היא מספר בין 1 ל-4.</p>
+<textarea id="schedule" rows="8" placeholder="1, יום ב', 15:00-15:45, רחל&#10;1, יום ג', 16:00-16:45, רחל&#10;2, יום ד', 15:00-15:45, שחף"></textarea>
 <button id="create-btn">הוספה</button>
 <p id="create-err" style="color:red"></p>
 <p id="create-ok" style="color:green"></p>

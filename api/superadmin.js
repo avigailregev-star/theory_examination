@@ -1,5 +1,35 @@
 const { getServiceClient } = require('./_supabase');
 
+function parseScheduleText(text) {
+  const schedule = {};
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) {
+    throw new Error('לא הוזנו מועדים');
+  }
+  let count = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const parts = lines[i].split(',').map((p) => p.trim());
+    if (parts.length < 4) {
+      throw new Error('שורה ' + (i + 1) + ': חסרים פרטים (צריך רמה, יום, שעה, שם מורה מופרדים בפסיקים)');
+    }
+    const [level, day, time, teacher, note] = parts;
+    if (!/^[1-4]$/.test(level)) {
+      throw new Error('שורה ' + (i + 1) + ': הרמה חייבת להיות מספר בין 1 ל-4');
+    }
+    if (!day || !time || !teacher) {
+      throw new Error('שורה ' + (i + 1) + ': חסר יום, שעה או שם מורה');
+    }
+    count += 1;
+    const id = 'slot-' + count;
+    schedule[level] = schedule[level] || [];
+    schedule[level].push(note ? [id, day, time, teacher, note] : [id, day, time, teacher]);
+  }
+  return schedule;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -30,9 +60,9 @@ module.exports = async function handler(req, res) {
     }
     let parsedSchedule;
     try {
-      parsedSchedule = JSON.parse(schedule);
-    } catch {
-      res.status(400).json({ error: 'מערכת השעות אינה JSON תקין' });
+      parsedSchedule = parseScheduleText(schedule);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
       return;
     }
 
