@@ -56,6 +56,8 @@ pgcrypto להצפנת סיסמאות), `@supabase/supabase-js`.
 - [ ] **Step 1: כתיבת supabase/002-multi-tenant.sql**
 
 ```sql
+create extension if not exists pgcrypto;
+
 create table tenants (
   id uuid primary key default gen_random_uuid(),
   slug text unique not null,
