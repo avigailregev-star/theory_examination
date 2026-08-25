@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
     const { data, error } = await supabase.rpc('provision_tenant', { p_slug: slug, p_email: email, p_password: temporaryPassword });
     if (error) return res.status(400).json({ error: error.message });
     const proto = req.headers['x-forwarded-proto'] || 'https';
-    return res.status(200).json({ tenant: data, inviteUrl: `${proto}://${req.headers.host}/theory-${slug}#admin` });
+    return res.status(200).json({ tenant: data, inviteUrl: `${proto}://${req.headers.host}/theory-${slug}/admin` });
   }
   return res.status(400).json({ error: 'פעולה לא מוכרת' });
 };

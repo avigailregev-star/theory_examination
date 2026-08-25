@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/superadmin", "destination": "/superadmin.html" },
+    { "source": "/theory-:slug/admin", "destination": "/Dimona-Theory-Placement-Standalone.html" },
     { "source": "/theory-:slug", "destination": "/Dimona-Theory-Placement-Standalone.html" }
   ]
 }
