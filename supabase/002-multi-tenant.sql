@@ -29,12 +29,15 @@ insert into tenants (slug, name, schedule) values (
 alter table lesson_slots add column tenant_id uuid references tenants(id);
 update lesson_slots set tenant_id = (select id from tenants where slug = 'dimona');
 alter table lesson_slots alter column tenant_id set not null;
-alter table lesson_slots drop constraint lesson_slots_pkey;
-alter table lesson_slots add primary key (tenant_id, id);
 
 alter table results add column tenant_id uuid references tenants(id);
 update results set tenant_id = (select id from tenants where slug = 'dimona');
 alter table results alter column tenant_id set not null;
+
+alter table results drop constraint results_lesson_slot_id_fkey;
+alter table lesson_slots drop constraint lesson_slots_pkey;
+alter table lesson_slots add primary key (tenant_id, id);
+alter table results add constraint results_lesson_slot_id_fkey foreign key (tenant_id, lesson_slot_id) references lesson_slots(tenant_id, id);
 
 create or replace function hash_password(p_password text)
 returns text
