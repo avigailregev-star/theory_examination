@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
     try { schedule = parseScheduleText(scheduleText); } catch (error) { return res.status(400).json({ error: error.message }); }
     if (typeof name !== 'string' || name.trim().length < 2 || typeof logo !== 'string') return res.status(400).json({ error: 'יש להזין שם קונסרבטוריון תקין' });
     const { error } = await supabase.rpc('update_tenant_settings', { p_tenant_id: tenant.id, p_name: name, p_logo: logo, p_schedule: schedule });
-    if (error) return res.status(400).json({ error: error.message.includes('OCCUPIED_SLOT_REMOVAL') ? 'לא ניתן להסיר קבוצה שכבר משובצים אליה תלמידים' : error.message });
+    if (error) return res.status(400).json({ error: error.message.includes('OCCUPIED_SLOT_REMOVAL') ? 'לא ניתן להסיר קבוצה שכבר משובצים אליה תלמידים' : error.message.includes('CAPACITY_BELOW_BOOKED') ? 'לא ניתן לקבוע מגבלה נמוכה ממספר התלמידים שכבר שובצו' : error.message });
     return res.status(200).json({ ok: true });
   }
   if (action === 'delete') {
