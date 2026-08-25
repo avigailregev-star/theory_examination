@@ -1,49 +1,13 @@
-<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>ניהול-על</title><style>body{font-family:Arial;max-width:700px;margin:40px auto;padding:0 20px}input,textarea{width:100%;padding:8px;margin:6px 0;box-sizing:border-box;font:inherit}button{padding:10px 20px;cursor:pointer}table{width:100%;border-collapse:collapse;margin-top:20px}td,th{border:1px solid #ccc;padding:6px;text-align:right}</style></head><body>
-<h1>ניהול קונסרבטוריונים</h1>
-<div id="login"><input id="pass" type="password" placeholder="סיסמת ניהול-על"><button id="login-btn">כניסה</button><p id="login-err" style="color:red"></p></div>
-<div id="app" style="display:none">
-<h2>קונסרבטוריונים קיימים</h2>
-<table id="tenants-table"><thead><tr><th>שם</th><th>slug</th><th>קישור</th></tr></thead><tbody id="tenants-body"></tbody></table>
-<h2>הוספת קונסרבטוריון</h2>
-<input id="name" placeholder="שם תצוגה">
-<input id="slug" placeholder="slug (באנגלית, למשל hadera)">
-<input id="admin-password" type="password" placeholder="סיסמת ניהול ללקוח">
-<p>מערכת שעות — שורה אחת לכל מועד, בפורמט: <b>רמה, יום, שעה, שם המורה</b> (אפשר להוסיף הערה חופשית כחלק חמישי, למשל שם קורס). רמה היא מספר בין 1 ל-4.</p>
-<textarea id="schedule" rows="8" placeholder="1, יום ב', 15:00-15:45, רחל&#10;1, יום ג', 16:00-16:45, רחל&#10;2, יום ד', 15:00-15:45, שחף"></textarea>
-<button id="create-btn">הוספה</button>
-<p id="create-err" style="color:red"></p>
-<p id="create-ok" style="color:green"></p>
-</div>
-<script>
-let pass='';
-document.getElementById('login-btn').onclick=async()=>{
-  pass=document.getElementById('pass').value;
-  const res=await fetch('/api/superadmin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass,action:'list'})});
-  if(!res.ok){document.getElementById('login-err').textContent='סיסמה שגויה';return}
-  document.getElementById('login').style.display='none';
-  document.getElementById('app').style.display='block';
-  loadTenants();
-};
-async function loadTenants(){
-  const res=await fetch('/api/superadmin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass,action:'list'})});
-  const {tenants}=await res.json();
-  document.getElementById('tenants-body').innerHTML=tenants.map(t=>'<tr><td>'+t.name+'</td><td>'+t.slug+'</td><td><a href="/theory-'+t.slug+'" target="_blank">/theory-'+t.slug+'</a></td></tr>').join('');
-}
-document.getElementById('create-btn').onclick=async()=>{
-  const body={
-    password:pass,
-    action:'create',
-    name:document.getElementById('name').value,
-    slug:document.getElementById('slug').value,
-    adminPassword:document.getElementById('admin-password').value,
-    schedule:document.getElementById('schedule').value
-  };
-  const res=await fetch('/api/superadmin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const data=await res.json();
-  if(!res.ok){document.getElementById('create-err').textContent=data.error;document.getElementById('create-ok').textContent='';return}
-  document.getElementById('create-err').textContent='';
-  document.getElementById('create-ok').textContent='נוצר בהצלחה!';
-  loadTenants();
-};
-</script>
-</body></html>
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ניהול לקוחות</title><style>body{font-family:Arial;background:#f7f4ee;color:#111d3d;max-width:850px;margin:40px auto;padding:0 20px}.card{background:#fff;padding:28px;border-radius:20px;margin:18px 0;box-shadow:0 10px 35px #1112}input{width:100%;padding:12px;margin:7px 0;box-sizing:border-box;font:inherit;border:1px solid #ccc;border-radius:9px}button{padding:12px 20px;border:0;border-radius:10px;background:#f8004f;color:#fff;font-weight:bold;cursor:pointer}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #ddd;text-align:right}.ok{color:#168665}.err{color:#a61e36}.muted{color:#666;font-size:14px}</style></head><body>
+<h1>ניהול חשבונות קונסרבטוריונים</h1>
+<div id="login" class="card"><input id="pass" type="password" placeholder="סיסמת ניהול־על"><button id="loginBtn">כניסה</button><p id="loginErr" class="err"></p></div>
+<div id="app" hidden>
+<section class="card"><h2>פתיחת חשבון חדש</h2><p>כאן מזינים רק פרטי גישה. הקונסרבטוריון ימלא בעצמו את שמו, הלוגו ומערכת השעות.</p><input id="slug" dir="ltr" placeholder="מזהה לכתובת באנגלית, למשל hadera"><input id="email" type="email" placeholder="דוא״ל מנהל הקונסרבטוריון"><input id="temporaryPassword" type="password" placeholder="סיסמה זמנית — לפחות 8 תווים"><button id="createBtn">יצירת חשבון</button><p id="createErr" class="err"></p><div id="invite" class="ok"></div></section>
+<section class="card"><h2>חשבונות קיימים</h2><table><thead><tr><th>שם</th><th>מזהה</th><th>מצב</th><th>כניסה</th></tr></thead><tbody id="tenants"></tbody></table></section>
+</div><script>
+let password='';const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function call(body){const res=await fetch('/api/superadmin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,...body})});const data=await res.json();if(!res.ok)throw new Error(data.error||'הפעולה נכשלה');return data}
+async function load(){const {tenants}=await call({action:'list'});$('tenants').innerHTML=tenants.map(t=>`<tr><td>${esc(t.name)}</td><td dir="ltr">${esc(t.slug)}</td><td>${t.configured?'הוגדר':'ממתין להגדרה'}</td><td><a href="/theory-${encodeURIComponent(t.slug)}" target="_blank">פתיחה</a></td></tr>`).join('')}
+$('loginBtn').onclick=async()=>{password=$('pass').value;try{await load();$('login').hidden=true;$('app').hidden=false}catch(e){$('loginErr').textContent=e.message}};
+$('createBtn').onclick=async()=>{ $('createErr').textContent='';$('invite').textContent='';try{const data=await call({action:'create',slug:$('slug').value.trim().toLowerCase(),email:$('email').value.trim(),temporaryPassword:$('temporaryPassword').value});$('invite').innerHTML='החשבון נוצר. יש לשלוח לקונסרבטוריון את הקישור ופרטי הכניסה:<br><a href="'+esc(data.inviteUrl)+'" target="_blank">'+esc(data.inviteUrl)+'</a>';await load()}catch(e){$('createErr').textContent=e.message}};
+</script></body></html>
