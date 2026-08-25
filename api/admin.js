@@ -2,7 +2,17 @@ const { getServiceClient } = require('./_supabase');
 
 const attempts = new Map();
 
-function rateLimited(key) {
+function isRateLimited(key) {
+  const entry = attempts.get(key) || { count: 0, resetAt: 0 };
+  if (Date.now() > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = Date.now() + 60000;
+  }
+  attempts.set(key, entry);
+  return entry.count > 10;
+}
+
+function recordFailedAttempt(key) {
   const entry = attempts.get(key) || { count: 0, resetAt: 0 };
   if (Date.now() > entry.resetAt) {
     entry.count = 0;
@@ -10,7 +20,6 @@ function rateLimited(key) {
   }
   entry.count++;
   attempts.set(key, entry);
-  return entry.count > 10;
 }
 
 module.exports = async function handler(req, res) {
@@ -21,11 +30,12 @@ module.exports = async function handler(req, res) {
   const { password, action, id } = req.body || {};
   const key = req.headers['x-forwarded-for'] || 'unknown';
 
-  if (rateLimited(key)) {
+  if (isRateLimited(key)) {
     res.status(429).json({ error: 'יותר מדי ניסיונות, נסו שוב בעוד דקה' });
     return;
   }
   if (password !== process.env.ADMIN_PASSWORD) {
+    recordFailedAttempt(key);
     res.status(401).json({ error: 'סיסמה שגויה' });
     return;
   }
@@ -49,11 +59,15 @@ module.exports = async function handler(req, res) {
   if (action === 'delete') {
     const { data: row, error: e1 } = await supabase
       .from('results')
-      .select('lesson_slot_id')
+      .select('lesson_slot_id, status')
       .eq('id', id)
       .single();
     if (e1) {
       res.status(500).json({ error: e1.message });
+      return;
+    }
+    if (row.status === 'נמחק') {
+      res.status(200).json({ ok: true });
       return;
     }
     await supabase.from('results').update({ status: 'נמחק' }).eq('id', id);

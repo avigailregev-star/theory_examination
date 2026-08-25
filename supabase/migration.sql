@@ -73,3 +73,6 @@ insert into lesson_slots (id, capacity) values
   ('b-mon-1500', 8), ('b-mon-1600', 8), ('b-tue-1915', 8), ('b-wed-1500', 8),
   ('c-wed-1600', 8), ('c-wed-1700', 8),
   ('d-wed-1415', 8);
+
+revoke execute on function book_slot(text, jsonb) from anon, authenticated;
+revoke execute on function release_slot(text) from anon, authenticated;
