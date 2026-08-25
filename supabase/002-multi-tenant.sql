@@ -111,7 +111,7 @@ begin
 end;
 $$;
 
-revoke execute on function book_slot(uuid, text, jsonb) from anon, authenticated;
-revoke execute on function release_slot(uuid, text) from anon, authenticated;
-revoke execute on function verify_tenant_password(uuid, text) from anon, authenticated;
-revoke execute on function hash_password(text) from anon, authenticated;
+revoke execute on function book_slot(uuid, text, jsonb) from public;
+revoke execute on function release_slot(uuid, text) from public;
+revoke execute on function verify_tenant_password(uuid, text) from public;
+revoke execute on function hash_password(text) from public;
