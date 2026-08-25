@@ -54,7 +54,7 @@ create or replace function verify_tenant_password(p_tenant_id uuid, p_password t
 returns boolean
 language sql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
   select admin_password_hash = crypt(p_password, admin_password_hash)
   from tenant_auth where tenant_id = p_tenant_id;
