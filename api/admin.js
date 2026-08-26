@@ -27,7 +27,20 @@ module.exports = async function handler(req, res) {
     let schedule;
     try { schedule = parseScheduleText(scheduleText); } catch (error) { return res.status(400).json({ error: error.message }); }
     if (typeof name !== 'string' || name.trim().length < 2 || typeof logo !== 'string') return res.status(400).json({ error: 'יש להזין שם קונסרבטוריון תקין' });
-    const { error } = await supabase.rpc('update_tenant_settings', { p_tenant_id: tenant.id, p_name: name, p_logo: logo, p_schedule: schedule });
+    let savedLogo = logo.trim();
+    if (savedLogo.startsWith('data:')) {
+      const match = savedLogo.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) return res.status(400).json({ error: 'יש לבחור קובץ תמונה מסוג PNG, JPG או WEBP' });
+      const bytes = Buffer.from(match[2], 'base64');
+      if (!bytes.length || bytes.length > 1.5 * 1024 * 1024) return res.status(400).json({ error: 'הלוגו חייב להיות קטן מ־1.5MB' });
+      const bucket = 'tenant-logos';
+      const { error: bucketError } = await supabase.storage.createBucket(bucket, { public: true, fileSizeLimit: 1572864, allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] });
+      if (bucketError && !/already exists|duplicate/i.test(bucketError.message)) return res.status(500).json({ error: 'לא הצלחנו להכין את אחסון הלוגו' });
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(`${tenant.id}/logo`, bytes, { contentType: match[1], upsert: true, cacheControl: '3600' });
+      if (uploadError) return res.status(500).json({ error: 'העלאת הלוגו נכשלה: ' + uploadError.message });
+      savedLogo = supabase.storage.from(bucket).getPublicUrl(`${tenant.id}/logo`).data.publicUrl + '?v=' + Date.now();
+    }
+    const { error } = await supabase.rpc('update_tenant_settings', { p_tenant_id: tenant.id, p_name: name, p_logo: savedLogo, p_schedule: schedule });
     if (error) return res.status(400).json({ error: error.message.includes('OCCUPIED_SLOT_REMOVAL') ? 'לא ניתן להסיר קבוצה שכבר משובצים אליה תלמידים' : error.message.includes('CAPACITY_BELOW_BOOKED') ? 'לא ניתן לקבוע מגבלה נמוכה ממספר התלמידים שכבר שובצו' : error.message });
     return res.status(200).json({ ok: true });
   }
