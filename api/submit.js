@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
 
   const { data: tenant, error: tenantError } = await supabase
     .from('tenants')
-    .select('id')
+    .select('id,schedule')
     .eq('slug', tenantSlug)
     .single();
   if (tenantError || !tenant) {
@@ -22,10 +22,12 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  if (row.guitar) {
+  const levelSlots = tenant.schedule?.[String(row.level)] || [];
+  const savesLevelOnly = !row.guitar && !row.slot && levelSlots.length === 0;
+  if (row.guitar || savesLevelOnly) {
     const { data, error } = await supabase
       .from('results')
-      .insert({ id: row.id, status: 'פעיל', guitar: true, data: row, tenant_id: tenant.id })
+      .insert({ id: row.id, status: 'פעיל', guitar: Boolean(row.guitar), data: row, tenant_id: tenant.id })
       .select()
       .single();
     if (error) {
@@ -33,6 +35,11 @@ module.exports = async function handler(req, res) {
       return;
     }
     res.status(200).json({ row: data });
+    return;
+  }
+
+  if (!row.slot) {
+    res.status(400).json({ error: 'SLOT_REQUIRED' });
     return;
   }
 

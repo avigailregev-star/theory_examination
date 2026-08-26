@@ -2,7 +2,7 @@ function parseScheduleText(text) {
   const schedule = {};
   const ids = new Set();
   const lines = String(text || '').split('\n').map((line) => line.trim()).filter(Boolean);
-  if (!lines.length) throw new Error('יש להזין לפחות מועד אחד');
+  if (!lines.length) return schedule;
   lines.forEach((line, index) => {
     const parts = line.split(',').map((part) => part.trim());
     if (parts.length < 4) throw new Error(`שורה ${index + 1}: יש להזין רמה, יום, שעה ושם מורה`);
