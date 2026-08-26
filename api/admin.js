@@ -12,6 +12,7 @@ module.exports = async function handler(req, res) {
   const supabase = getServiceClient();
   const { data: tenant } = await supabase.from('tenants').select('id,name,logo,schedule').eq('slug', tenantSlug).single();
   if (!tenant) return res.status(404).json({ error: 'TENANT_NOT_FOUND' });
+  if (tenant.schedule?._disabled === true) return res.status(403).json({ error: 'החשבון מושבת. יש לפנות למנהלת המערכת.' });
   const { data: passwordOk, error: verifyError } = await supabase.rpc('verify_tenant_password', { p_tenant_id: tenant.id, p_password: password });
   if (verifyError || !passwordOk) { recordFailure(key); return res.status(401).json({ error: 'סיסמה שגויה' }); }
   attempts.delete(key);

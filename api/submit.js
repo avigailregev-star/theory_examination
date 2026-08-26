@@ -21,6 +21,10 @@ module.exports = async function handler(req, res) {
     res.status(404).json({ error: 'TENANT_NOT_FOUND' });
     return;
   }
+  if (tenant.schedule?._disabled === true) {
+    res.status(403).json({ error: 'TENANT_DISABLED' });
+    return;
+  }
 
   const levelSlots = tenant.schedule?.[String(row.level)] || [];
   const savesLevelOnly = !row.guitar && !row.slot && levelSlots.length === 0;
