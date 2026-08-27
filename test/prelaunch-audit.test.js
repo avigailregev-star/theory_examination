@@ -1,0 +1,44 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+
+const root = path.join(__dirname, '..');
+const html = fs.readFileSync(path.join(root, 'Dimona-Theory-Placement-Standalone.html'), 'utf8');
+const qStart = html.indexOf('const QUESTIONS=') + 'const QUESTIONS='.length;
+const qEnd = html.indexOf('],ABC=', qStart) + 1;
+const questions = JSON.parse(html.slice(qStart, qEnd));
+const abcStart = html.indexOf('ABC=', qEnd) + 4;
+const abcEnd = html.indexOf(',SCHEDULE=', abcStart);
+const abc = JSON.parse(html.slice(abcStart, abcEnd));
+
+assert.equal(new Set(questions.map(q => q.id)).size, questions.length, 'question ids must be unique');
+assert.equal(questions.filter(q => q.tier === 7).length, 2, 'exactly two tier-seven questions are required');
+for (const q of questions) {
+  assert.ok(q.options.includes(q.answer), `${q.id}: answer must be one of the options`);
+  assert.ok(q.tier >= 1 && q.tier <= 7, `${q.id}: tier must be 1-7`);
+  if (q.figure !== 'none') assert.ok(abc[q.figure], `${q.id}: missing notation ${q.figure}`);
+  if (q.optionFigures) for (const option of Object.keys(q.optionFigures)) assert.ok(q.options.includes(option), `${q.id}: orphan option figure`);
+}
+assert.match(html, /Math\.min\(7,diag\)/, 'diagnostic must be able to reach tier seven');
+assert.doesNotMatch(html, /dimona-pending-result/, 'offline storage must not be shared across tenants');
+assert.match(html, /privacyConsent/, 'privacy consent is required');
+assert.doesNotMatch(html, /גיל \*/, 'age must not be mandatory');
+assert.doesNotMatch(html, /לתלמיד מתחת לגיל 18/, 'there must be no age-based restriction');
+assert.doesNotMatch(html, /פעמות גדולות/, 'deprecated wording must not return');
+assert.doesNotMatch(html, /diag===1\?1:diag<=3/, 'legacy four-level placement mapping must not return');
+
+for (const [i, script] of [...html.matchAll(/<script(?:[^>]*)>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(Boolean).entries()) {
+  new vm.Script(script, { filename: `inline-${i}.js` });
+}
+
+const { parseScheduleText } = require(path.join(root, 'api', '_schedule'));
+for (let level = 1; level <= 7; level++) assert.ok(parseScheduleText(`${level}, יום ב׳, 15:00–15:45, מורה`)[level]);
+assert.throws(() => parseScheduleText('8, יום ב׳, 15:00–15:45, מורה'));
+
+const submitSource = fs.readFileSync(path.join(root, 'api', 'submit.js'), 'utf8');
+assert.match(submitSource, /SLOT_LEVEL_MISMATCH/, 'the server must reject a slot from a different level');
+assert.match(submitSource, /tenantSlug === 'dimona'/, 'the guitar exception must remain scoped to Dimona');
+JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+
+console.log(`Prelaunch audit passed: ${questions.length} questions, levels 1-7, scripts valid.`);
