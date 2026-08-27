@@ -2,7 +2,10 @@
   "name": "dimona-theory-placement",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "test": "node test/prelaunch-audit.test.js"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "2.112.4"
   }
 }
