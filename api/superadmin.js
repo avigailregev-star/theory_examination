@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
     }
     const tenants = tenantQuery.data.map((tenant) => ({
       ...tenant,
-      configured: Object.keys(tenant.schedule || {}).some((key) => /^[1-4]$/.test(key)),
+      configured: Object.keys(tenant.schedule || {}).some((key) => /^[1-7]$/.test(key)),
       active: tenant.schedule?._disabled !== true,
       activeStudents: activeByTenant.get(tenant.id) || 0,
       occupancy: occupancyByTenant.get(tenant.id) || { booked: 0, capacity: 0 },

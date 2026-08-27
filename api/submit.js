@@ -26,12 +26,22 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const guitar = tenantSlug === 'dimona' && row.guitar === true && row.instrument === 'גיטרה';
+  if (typeof row.fullName !== 'string' || !row.fullName.trim() || typeof row.instrument !== 'string' || !row.instrument.trim() || (!row.studentPhone && !row.email) || row.privacyConsent !== true) {
+    return res.status(400).json({ error: 'INVALID_STUDENT_DETAILS' });
+  }
+  const diagnosticValid = Number.isInteger(Number(row.diagnostic)) && Number(row.diagnostic) >= 1 && Number(row.diagnostic) <= 7;
+  const levelValid = Number.isInteger(Number(row.level)) && Number(row.level) >= 1 && Number(row.level) <= 7;
+  const waitlistValid = row.waitlist === true && row.level == null && !row.slot;
+  if (!guitar && (!diagnosticValid || (!levelValid && !waitlistValid))) {
+    return res.status(400).json({ error: 'INVALID_LEVEL' });
+  }
   const levelSlots = tenant.schedule?.[String(row.level)] || [];
-  const savesLevelOnly = !row.guitar && !row.slot && levelSlots.length === 0;
-  if (row.guitar || savesLevelOnly) {
+  const savesLevelOnly = !guitar && !row.slot && levelSlots.length === 0;
+  if (guitar || savesLevelOnly) {
     const { data, error } = await supabase
       .from('results')
-      .insert({ id: row.id, status: 'פעיל', guitar: Boolean(row.guitar), data: row, tenant_id: tenant.id })
+      .insert({ id: row.id, status: 'פעיל', guitar, data: { ...row, guitar }, tenant_id: tenant.id })
       .select()
       .single();
     if (error) {
@@ -46,6 +56,7 @@ module.exports = async function handler(req, res) {
     res.status(400).json({ error: 'SLOT_REQUIRED' });
     return;
   }
+  if (!levelSlots.some((slot) => slot[0] === row.slot)) return res.status(400).json({ error: 'SLOT_LEVEL_MISMATCH' });
 
   const { data, error } = await supabase.rpc('book_slot', {
     p_tenant_id: tenant.id,
