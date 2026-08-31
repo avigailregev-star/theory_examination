@@ -32,6 +32,17 @@ module.exports = async function handler(req, res) {
     let schedule;
     try { schedule = parseScheduleText(scheduleText); } catch (error) { return res.status(400).json({ error: error.message }); }
     if (typeof name !== 'string' || name.trim().length < 2 || typeof logo !== 'string') return res.status(400).json({ error: 'יש להזין שם קונסרבטוריון תקין' });
+    const nextSlots = Object.values(schedule).flat();
+    const nextSlotIds = new Set(nextSlots.map((item) => item[0]));
+    const nextCapacity = new Map(nextSlots.map((item) => [item[0], Number(item[5] || 8)]));
+    const { data: currentSlots, error: slotsError } = await supabase
+      .from('lesson_slots')
+      .select('id,booked_count')
+      .eq('tenant_id', tenant.id);
+    if (slotsError) return res.status(500).json({ error: 'לא הצלחנו לבדוק את הקבוצות הקיימות' });
+    const capacityConflict = (currentSlots || []).find((item) => nextSlotIds.has(item.id) && item.booked_count > nextCapacity.get(item.id));
+    if (capacityConflict) return res.status(400).json({ error: 'לא ניתן לקבוע מגבלה נמוכה ממספר התלמידים שכבר שובצו' });
+    const removedSlotIds = (currentSlots || []).filter((item) => !nextSlotIds.has(item.id)).map((item) => item.id);
     let savedLogo = logo.trim();
     if (savedLogo.startsWith('data:')) {
       const match = savedLogo.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
@@ -45,9 +56,55 @@ module.exports = async function handler(req, res) {
       if (uploadError) return res.status(500).json({ error: 'העלאת הלוגו נכשלה: ' + uploadError.message });
       savedLogo = supabase.storage.from(bucket).getPublicUrl(`${tenant.id}/logo`).data.publicUrl + '?v=' + Date.now();
     }
-    const { error } = await supabase.rpc('update_tenant_settings', { p_tenant_id: tenant.id, p_name: name, p_logo: savedLogo, p_schedule: schedule });
-    if (error) return res.status(400).json({ error: error.message.includes('OCCUPIED_SLOT_REMOVAL') ? 'לא ניתן להסיר קבוצה שכבר משובצים אליה תלמידים' : error.message.includes('CAPACITY_BELOW_BOOKED') ? 'לא ניתן לקבוע מגבלה נמוכה ממספר התלמידים שכבר שובצו' : error.message });
-    return res.status(200).json({ ok: true });
+    let unassignedCount = 0;
+    if (removedSlotIds.length) {
+      const { data: affectedResults, error: resultsError } = await supabase
+        .from('results')
+        .select('id,data')
+        .eq('tenant_id', tenant.id)
+        .in('lesson_slot_id', removedSlotIds);
+      if (resultsError) return res.status(500).json({ error: 'לא הצלחנו לעדכן את שיבוצי התלמידים' });
+      unassignedCount = (affectedResults || []).length;
+      const updates = await Promise.all((affectedResults || []).map((row) => supabase
+        .from('results')
+        .update({ lesson_slot_id: null, data: { ...(row.data || {}), slot: null } })
+        .eq('id', row.id)
+        .eq('tenant_id', tenant.id)));
+      if (updates.some(({ error }) => error)) return res.status(500).json({ error: 'לא הצלחנו לבטל את השיבוצים לקבוצות שנמחקו' });
+      const { error: resetError } = await supabase
+        .from('lesson_slots')
+        .update({ booked_count: 0 })
+        .eq('tenant_id', tenant.id)
+        .in('id', removedSlotIds);
+      if (resetError) return res.status(500).json({ error: 'לא הצלחנו לפנות את הקבוצות שנמחקו' });
+    }
+    if (removedSlotIds.length) {
+      const { error: deleteSlotsError } = await supabase
+        .from('lesson_slots')
+        .delete()
+        .eq('tenant_id', tenant.id)
+        .in('id', removedSlotIds);
+      if (deleteSlotsError) return res.status(500).json({ error: 'מחיקת הקבוצות נכשלה' });
+    }
+    if (nextSlots.length) {
+      const existingCounts = new Map((currentSlots || []).map((item) => [item.id, item.booked_count]));
+      const slotRows = nextSlots.map((item) => ({
+        tenant_id: tenant.id,
+        id: item[0],
+        capacity: Number(item[5] || 8),
+        booked_count: existingCounts.get(item[0]) || 0,
+      }));
+      const { error: upsertSlotsError } = await supabase
+        .from('lesson_slots')
+        .upsert(slotRows, { onConflict: 'tenant_id,id' });
+      if (upsertSlotsError) return res.status(500).json({ error: 'שמירת הקבוצות נכשלה' });
+    }
+    const { error } = await supabase
+      .from('tenants')
+      .update({ name: name.trim(), logo: savedLogo || null, schedule })
+      .eq('id', tenant.id);
+    if (error) return res.status(500).json({ error: 'שמירת מערכת השעות נכשלה' });
+    return res.status(200).json({ ok: true, unassignedCount });
   }
   if (action === 'delete') {
     const { data: row, error: e1 } = await supabase.from('results').select('lesson_slot_id,status').eq('id', id).eq('tenant_id', tenant.id).single();
