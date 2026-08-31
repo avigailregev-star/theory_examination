@@ -1,8 +1,18 @@
 const { getServiceClient } = require('./_supabase');
+const attempts = new Map();
+function requestKey(req) { return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim(); }
+function isBlocked(key) { const item = attempts.get(key); return Boolean(item && item.until > Date.now() && item.count >= 10); }
+function recordFailure(key) { const item = attempts.get(key); attempts.set(key, item && item.until > Date.now() ? { ...item, count: item.count + 1 } : { count: 1, until: Date.now() + 60000 }); }
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { password, action, slug, email, temporaryPassword, confirmSlug } = req.body || {};
-  if (!process.env.SUPERADMIN_PASSWORD || password !== process.env.SUPERADMIN_PASSWORD) return res.status(401).json({ error: 'סיסמה שגויה' });
+  const key = requestKey(req);
+  if (isBlocked(key)) return res.status(429).json({ error: 'יותר מדי ניסיונות, נסו שוב בעוד דקה' });
+  if (!process.env.SUPERADMIN_PASSWORD || password !== process.env.SUPERADMIN_PASSWORD) {
+    recordFailure(key);
+    return res.status(401).json({ error: 'סיסמה שגויה' });
+  }
+  attempts.delete(key);
   const supabase = getServiceClient();
   if (action === 'list') {
     const [tenantQuery, resultQuery, slotQuery] = await Promise.all([

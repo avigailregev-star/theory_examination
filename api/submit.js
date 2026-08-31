@@ -26,6 +26,18 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // A client may retry after the server saved the result but the response was
+  // interrupted. Treat the stable result id as an idempotency key so that a
+  // retry succeeds instead of creating an error loop or a duplicate booking.
+  const { data: existing, error: existingError } = await supabase
+    .from('results')
+    .select('*')
+    .eq('tenant_id', tenant.id)
+    .eq('id', row.id)
+    .maybeSingle();
+  if (existingError) return res.status(500).json({ error: existingError.message });
+  if (existing) return res.status(200).json({ row: existing, duplicate: true });
+
   const guitar = tenantSlug === 'dimona' && row.guitar === true && row.instrument === 'גיטרה';
   if (typeof row.fullName !== 'string' || !row.fullName.trim() || typeof row.instrument !== 'string' || !row.instrument.trim() || (!row.studentPhone && !row.email) || row.privacyConsent !== true) {
     return res.status(400).json({ error: 'INVALID_STUDENT_DETAILS' });

@@ -27,6 +27,7 @@ assert.doesNotMatch(html, /גיל \*/, 'age must not be mandatory');
 assert.doesNotMatch(html, /לתלמיד מתחת לגיל 18/, 'there must be no age-based restriction');
 assert.doesNotMatch(html, /פעמות גדולות/, 'deprecated wording must not return');
 assert.doesNotMatch(html, /diag===1\?1:diag<=3/, 'legacy four-level placement mapping must not return');
+assert.doesNotMatch(html, /professionalCompass|level-pills|admin-framework/, 'removed professional-compass panel code must not return');
 
 for (const [i, script] of [...html.matchAll(/<script(?:[^>]*)>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(Boolean).entries()) {
   new vm.Script(script, { filename: `inline-${i}.js` });
@@ -39,6 +40,19 @@ assert.throws(() => parseScheduleText('8, יום ב׳, 15:00–15:45, מורה')
 const submitSource = fs.readFileSync(path.join(root, 'api', 'submit.js'), 'utf8');
 assert.match(submitSource, /SLOT_LEVEL_MISMATCH/, 'the server must reject a slot from a different level');
 assert.match(submitSource, /tenantSlug === 'dimona'/, 'the guitar exception must remain scoped to Dimona');
+assert.match(submitSource, /duplicate: true/, 'result submission retries must be idempotent');
+assert.doesNotMatch(html, /state\.slot=b\.dataset\.id;choice\(\)/, 'slot selection must not reload the entire choice screen');
+const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
+assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
+assert.match(adminSource, /\.from\('lesson_slots'\)[\s\S]*?\.delete\(\)/, 'removed lessons must be deleted from storage');
+const superadminHtml = fs.readFileSync(path.join(root, 'superadmin.html'), 'utf8');
+assert.match(superadminHtml, /id="loginForm"/, 'superadmin login must support form submission and the Enter key');
+assert.match(superadminHtml, /id="createForm"/, 'tenant creation must support form submission and the Enter key');
+for (const [i, script] of [...superadminHtml.matchAll(/<script(?:[^>]*)>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(Boolean).entries()) {
+  new vm.Script(script, { filename: `superadmin-inline-${i}.js` });
+}
+const superadminSource = fs.readFileSync(path.join(root, 'api', 'superadmin.js'), 'utf8');
+assert.match(superadminSource, /status\(429\)/, 'superadmin login must throttle repeated password attempts');
 JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 
 console.log(`Prelaunch audit passed: ${questions.length} questions, levels 1-7, scripts valid.`);
