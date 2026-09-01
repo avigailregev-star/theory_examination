@@ -51,6 +51,10 @@ assert.doesNotMatch(html, /n\+'\/'\+capacity\+' · '\+percent\+'%'/, 'individual
 assert.match(html, /document\.hidden\|\|editingStudentId/, 'live refresh must pause while the page is hidden or a student is being edited');
 assert.match(html, /const slotCell=/, 'the admin schedule column must use the compact renderer');
 assert.match(html, /slot-compact/, 'compact schedule cell styles must be present');
+assert.match(html, /table-layout:fixed/, 'the admin student table must fit the available width');
+assert.match(html, /@media\(max-width:900px\)/, 'narrow screens must use the card layout');
+assert.match(html, /data-label="מועד"/, 'responsive student cells must include labels');
+assert.doesNotMatch(html, /\.museum-admin table\{min-width:900px\}/, 'the admin table must not force horizontal scrolling');
 const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
 assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
 assert.match(adminSource, /\.from\('lesson_slots'\)[\s\S]*?\.delete\(\)/, 'removed lessons must be deleted from storage');
