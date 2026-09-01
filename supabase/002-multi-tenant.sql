@@ -85,8 +85,8 @@ begin
     raise exception 'SLOT_FULL';
   end if;
 
-  insert into results (id, status, lesson_slot_id, guitar, data, tenant_id)
-  values (p_row->>'id', 'פעיל', p_slot, false, p_row, p_tenant_id)
+  insert into results (id, status, lesson_slot_id, data, tenant_id)
+  values (p_row->>'id', 'פעיל', p_slot, p_row, p_tenant_id)
   returning * into v_result;
 
   update lesson_slots set booked_count = booked_count + 1
