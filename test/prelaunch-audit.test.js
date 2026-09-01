@@ -49,6 +49,8 @@ assert.match(html, /overallOccupancyPercent/, 'admin must show one overall insti
 assert.match(html, /totals\.booked\/totals\.capacity\*100/, 'overall occupancy must use total booked places over total capacity');
 assert.doesNotMatch(html, /n\+'\/'\+capacity\+' · '\+percent\+'%'/, 'individual lesson rows must not show percentages');
 assert.match(html, /document\.hidden\|\|editingStudentId/, 'live refresh must pause while the page is hidden or a student is being edited');
+assert.match(html, /const slotCell=/, 'the admin schedule column must use the compact renderer');
+assert.match(html, /slot-compact/, 'compact schedule cell styles must be present');
 const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
 assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
 assert.match(adminSource, /\.from\('lesson_slots'\)[\s\S]*?\.delete\(\)/, 'removed lessons must be deleted from storage');
