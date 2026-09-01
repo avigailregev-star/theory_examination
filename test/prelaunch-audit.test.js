@@ -55,6 +55,9 @@ assert.match(html, /table-layout:fixed/, 'the admin student table must fit the a
 assert.match(html, /@media\(max-width:900px\)/, 'narrow screens must use the card layout');
 assert.match(html, /data-label="מועד"/, 'responsive student cells must include labels');
 assert.doesNotMatch(html, /\.museum-admin table\{min-width:900px\}/, 'the admin table must not force horizontal scrolling');
+assert.match(html, /more-actions-menu[^]*edit-student/, 'student editing must live inside the additional actions menu');
+assert.match(html, /student-edit-panel/, 'student editing must use the full-width edit panel');
+assert.doesNotMatch(html, /editing\?editField/, 'edit inputs must not be squeezed into individual table cells');
 const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
 assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
 assert.match(adminSource, /\.from\('lesson_slots'\)[\s\S]*?\.delete\(\)/, 'removed lessons must be deleted from storage');
