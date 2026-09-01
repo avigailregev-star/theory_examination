@@ -41,15 +41,18 @@ module.exports = async function handler(req, res) {
   if (typeof row.fullName !== 'string' || !row.fullName.trim() || typeof row.instrument !== 'string' || !row.instrument.trim() || (!row.studentPhone && !row.email) || row.privacyConsent !== true) {
     return res.status(400).json({ error: 'INVALID_STUDENT_DETAILS' });
   }
+  // Temporary rollout compatibility: an already-open pre-update Dimona form may
+  // still submit the former payload without answers. New clients never create it.
+  const legacyOpenForm = tenantSlug === 'dimona' && row.guitar === true && row.instrument === 'גיטרה' && row.diagnostic == null && row.level == null && !row.slot;
   const diagnosticValid = Number.isInteger(Number(row.diagnostic)) && Number(row.diagnostic) >= 1 && Number(row.diagnostic) <= 7;
   const levelValid = Number.isInteger(Number(row.level)) && Number(row.level) >= 1 && Number(row.level) <= 7;
   const waitlistValid = row.waitlist === true && row.level == null && !row.slot;
-  if (!diagnosticValid || (!levelValid && !waitlistValid)) {
+  if (!legacyOpenForm && (!diagnosticValid || (!levelValid && !waitlistValid))) {
     return res.status(400).json({ error: 'INVALID_LEVEL' });
   }
   const levelSlots = tenant.schedule?.[String(row.level)] || [];
   const savesLevelOnly = !row.slot && levelSlots.length === 0;
-  if (savesLevelOnly) {
+  if (legacyOpenForm || savesLevelOnly) {
     const { data, error } = await supabase
       .from('results')
       .insert({ id: row.id, status: 'פעיל', data: row, tenant_id: tenant.id })
