@@ -45,7 +45,9 @@ assert.match(html, /state\.stage='quiz';saveProgress\(\);trackEvent\('quiz_start
 assert.match(submitSource, /duplicate: true/, 'result submission retries must be idempotent');
 assert.doesNotMatch(html, /state\.slot=b\.dataset\.id;choice\(\)/, 'slot selection must not reload the entire choice screen');
 assert.match(html, /setInterval\(refreshLiveData,5000\)/, 'admin data must refresh in the background');
-assert.match(html, /Math\.round\(n\/capacity\*100\)/, 'occupancy must include a calculated percentage');
+assert.match(html, /overallOccupancyPercent/, 'admin must show one overall institution occupancy percentage');
+assert.match(html, /totals\.booked\/totals\.capacity\*100/, 'overall occupancy must use total booked places over total capacity');
+assert.doesNotMatch(html, /n\+'\/'\+capacity\+' · '\+percent\+'%'/, 'individual lesson rows must not show percentages');
 assert.match(html, /document\.hidden\|\|editingStudentId/, 'live refresh must pause while the page is hidden or a student is being edited');
 const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
 assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
