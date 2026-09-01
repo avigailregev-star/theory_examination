@@ -44,6 +44,9 @@ assert.match(submitSource, /if \(!legacyOpenForm && \(!diagnosticValid \|\| \(!l
 assert.match(html, /state\.stage='quiz';saveProgress\(\);trackEvent\('quiz_started'\);render\(\)/, 'the intake form must continue into the standard questionnaire');
 assert.match(submitSource, /duplicate: true/, 'result submission retries must be idempotent');
 assert.doesNotMatch(html, /state\.slot=b\.dataset\.id;choice\(\)/, 'slot selection must not reload the entire choice screen');
+assert.match(html, /setInterval\(refreshLiveData,5000\)/, 'admin data must refresh in the background');
+assert.match(html, /Math\.round\(n\/capacity\*100\)/, 'occupancy must include a calculated percentage');
+assert.match(html, /document\.hidden\|\|editingStudentId/, 'live refresh must pause while the page is hidden or a student is being edited');
 const adminSource = fs.readFileSync(path.join(root, 'api', 'admin.js'), 'utf8');
 assert.match(adminSource, /lesson_slot_id: null/, 'removing a lesson must clear affected student assignments');
 assert.match(adminSource, /\.from\('lesson_slots'\)[\s\S]*?\.delete\(\)/, 'removed lessons must be deleted from storage');
