@@ -11,7 +11,6 @@ create table results (
   created_at timestamptz not null default now(),
   status text not null default 'פעיל',
   lesson_slot_id text references lesson_slots(id),
-  guitar boolean not null default false,
   data jsonb not null
 );
 
@@ -45,8 +44,8 @@ begin
     raise exception 'SLOT_FULL';
   end if;
 
-  insert into results (id, status, lesson_slot_id, guitar, data)
-  values (p_row->>'id', 'פעיל', p_slot, false, p_row)
+  insert into results (id, status, lesson_slot_id, data)
+  values (p_row->>'id', 'פעיל', p_slot, p_row)
   returning * into v_result;
 
   update lesson_slots set booked_count = booked_count + 1 where id = p_slot;
