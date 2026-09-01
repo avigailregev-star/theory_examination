@@ -39,7 +39,8 @@ assert.throws(() => parseScheduleText('8, יום ב׳, 15:00–15:45, מורה')
 
 const submitSource = fs.readFileSync(path.join(root, 'api', 'submit.js'), 'utf8');
 assert.match(submitSource, /SLOT_LEVEL_MISMATCH/, 'the server must reject a slot from a different level');
-assert.match(submitSource, /if \(!diagnosticValid \|\| \(!levelValid && !waitlistValid\)\)/, 'every submitted result must include a valid assessment level');
+assert.match(submitSource, /legacyOpenForm/, 'the staged rollout must preserve already-open legacy submissions');
+assert.match(submitSource, /if \(!legacyOpenForm && \(!diagnosticValid \|\| \(!levelValid && !waitlistValid\)\)\)/, 'new submissions must include a valid assessment level');
 assert.match(html, /state\.stage='quiz';saveProgress\(\);trackEvent\('quiz_started'\);render\(\)/, 'the intake form must continue into the standard questionnaire');
 assert.match(submitSource, /duplicate: true/, 'result submission retries must be idempotent');
 assert.doesNotMatch(html, /state\.slot=b\.dataset\.id;choice\(\)/, 'slot selection must not reload the entire choice screen');
