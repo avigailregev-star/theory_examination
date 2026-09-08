@@ -26,11 +26,11 @@ module.exports = async function handler(req, res) {
       supabase.from('lesson_slots').select('*').eq('tenant_id', tenant.id),
     ]);
     if (e1 || e2) return res.status(500).json({ error: (e1 || e2).message });
-    return res.status(200).json({ tenant, results, slots });
+    const canceled = tenant.schedule?._canceledSlots || {}; const decoratedSlots = (slots || []).map(s => ({ ...s, status: canceled[s.id]?.status || 'פעיל', canceled_at: canceled[s.id]?.at || null, canceled_reason: canceled[s.id]?.reason || null })); return res.status(200).json({ tenant, results, slots: decoratedSlots });
   }
   if (action === 'settings') {
     let schedule;
-    try { schedule = parseScheduleText(scheduleText); } catch (error) { return res.status(400).json({ error: error.message }); }
+    try { schedule = parseScheduleText(scheduleText); } catch (error) { return res.status(400).json({ error: error.message }); } schedule._canceledSlots = { ...(tenant.schedule?._canceledSlots || {}) };
     if (typeof name !== 'string' || name.trim().length < 2 || typeof logo !== 'string') return res.status(400).json({ error: 'יש להזין שם קונסרבטוריון תקין' });
     const nextSlots = Object.values(schedule).flat();
     const nextSlotIds = new Set(nextSlots.map((item) => item[0]));
@@ -57,36 +57,7 @@ module.exports = async function handler(req, res) {
       savedLogo = supabase.storage.from(bucket).getPublicUrl(`${tenant.id}/logo`).data.publicUrl + '?v=' + Date.now();
     }
     let unassignedCount = 0;
-    if (removedSlotIds.length) {
-      const { data: affectedResults, error: resultsError } = await supabase
-        .from('results')
-        .select('id,data')
-        .eq('tenant_id', tenant.id)
-        .in('lesson_slot_id', removedSlotIds);
-      if (resultsError) return res.status(500).json({ error: 'לא הצלחנו לעדכן את שיבוצי התלמידים' });
-      unassignedCount = (affectedResults || []).length;
-      const updates = await Promise.all((affectedResults || []).map((row) => supabase
-        .from('results')
-        .update({ lesson_slot_id: null, data: { ...(row.data || {}), slot: null } })
-        .eq('id', row.id)
-        .eq('tenant_id', tenant.id)));
-      if (updates.some(({ error }) => error)) return res.status(500).json({ error: 'לא הצלחנו לבטל את השיבוצים לקבוצות שנמחקו' });
-      const { error: resetError } = await supabase
-        .from('lesson_slots')
-        .update({ booked_count: 0 })
-        .eq('tenant_id', tenant.id)
-        .in('id', removedSlotIds);
-      if (resetError) return res.status(500).json({ error: 'לא הצלחנו לפנות את הקבוצות שנמחקו' });
-    }
-    if (removedSlotIds.length) {
-      const { error: deleteSlotsError } = await supabase
-        .from('lesson_slots')
-        .delete()
-        .eq('tenant_id', tenant.id)
-        .in('id', removedSlotIds);
-      if (deleteSlotsError) return res.status(500).json({ error: 'מחיקת הקבוצות נכשלה' });
-    }
-    if (nextSlots.length) {
+    // Schedule edits no longer delete or unassign prior lesson records.\n    // Removed schedule entries remain in lesson_slots so prior assignments and cancellation history are recoverable.\n    if (nextSlots.length) {
       const existingCounts = new Map((currentSlots || []).map((item) => [item.id, item.booked_count]));
       const slotRows = nextSlots.map((item) => ({
         tenant_id: tenant.id,
@@ -105,6 +76,30 @@ module.exports = async function handler(req, res) {
       .eq('id', tenant.id);
     if (error) return res.status(500).json({ error: 'שמירת מערכת השעות נכשלה' });
     return res.status(200).json({ ok: true, unassignedCount });
+  }
+  if (action === 'cancel-slot') {
+    const reason = String(req.body?.reason || '').trim().slice(0, 300) || 'השיעור בוטל';
+    const { data: slotRow, error: slotError } = await supabase.from('lesson_slots').select('id,booked_count').eq('tenant_id', tenant.id).eq('id', slot).single();
+    if (slotError || !slotRow) return res.status(404).json({ error: 'השיעור לא נמצא' });
+    const canceled = { ...(tenant.schedule?._canceledSlots || {}) };
+    if (canceled[slot]?.status === 'מבוטל') return res.status(200).json({ ok: true, affectedCount: 0 });
+    const scheduleSlot = Object.values(tenant.schedule || {}).flat().find(item => Array.isArray(item) && String(item[0]) === String(slot));
+    const levelEntry = Object.entries(tenant.schedule || {}).find(([, list]) => Array.isArray(list) && list.some(item => Array.isArray(item) && String(item[0]) === String(slot)));
+    const originalSlot = scheduleSlot ? { id: scheduleSlot[0], level: levelEntry?.[0] || '', day: scheduleSlot[1] || '', time: scheduleSlot[2] || '', teacher: scheduleSlot[3] || '', note: scheduleSlot[4] || '' } : { id: String(slot) };
+    const { data: affected, error: affectedError } = await supabase.from('results').select('id,data').eq('tenant_id', tenant.id).eq('lesson_slot_id', slot).neq('status', 'נמחק');
+    if (affectedError) return res.status(500).json({ error: 'לא הצלחנו לאתר את התלמידים בשיעור' });
+    for (const row of affected || []) {
+      const history = Array.isArray(row.data?.assignmentHistory) ? row.data.assignmentHistory : [];
+      const nextData = { ...(row.data || {}), slot: null, assignmentHistory: [...history, { ...originalSlot, event: 'ביטול שיעור', reason, at: new Date().toISOString() }] };
+      const { error } = await supabase.from('results').update({ lesson_slot_id: null, data: nextData }).eq('id', row.id).eq('tenant_id', tenant.id);
+      if (error) return res.status(500).json({ error: 'לא הצלחנו לשמור את היסטוריית השיבוץ' });
+    }
+    const at = new Date().toISOString(); canceled[slot] = { status: 'מבוטל', reason, at };
+    const { error: tenantError } = await supabase.from('tenants').update({ schedule: { ...(tenant.schedule || {}), _canceledSlots: canceled } }).eq('id', tenant.id);
+    if (tenantError) return res.status(500).json({ error: 'לא הצלחנו לשמור את ביטול השיעור' });
+    const { error: countError } = await supabase.from('lesson_slots').update({ booked_count: 0 }).eq('tenant_id', tenant.id).eq('id', slot);
+    if (countError) return res.status(500).json({ error: 'לא הצלחנו לעדכן את תפוסת השיעור' });
+    return res.status(200).json({ ok: true, affectedCount: (affected || []).length });
   }
   if (action === 'delete') {
     const { data: row, error: e1 } = await supabase.from('results').select('lesson_slot_id,status').eq('id', id).eq('tenant_id', tenant.id).single();
