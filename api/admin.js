@@ -1,6 +1,7 @@
 const { getServiceClient } = require('./_supabase');
 const { parseScheduleText } = require('./_schedule');
 const attempts = new Map();
+const crypto = require('crypto');
 function attemptKey(req, slug) { return `${req.headers['x-forwarded-for'] || 'unknown'}:${slug || ''}`; }
 function isBlocked(key) { const item = attempts.get(key); return Boolean(item && item.until > Date.now() && item.count >= 10); }
 function recordFailure(key) { const item = attempts.get(key); attempts.set(key, item && item.until > Date.now() ? { ...item, count: item.count + 1 } : { count: 1, until: Date.now() + 60000 }); }
@@ -105,6 +106,20 @@ module.exports = async function handler(req, res) {
       .eq('id', tenant.id);
     if (error) return res.status(500).json({ error: 'שמירת מערכת השעות נכשלה' });
     return res.status(200).json({ ok: true, unassignedCount });
+  }
+  if (action === 'create-student') {
+    const input = student || {};
+    const fullName = String(input.fullName || '').trim().slice(0, 200);
+    const instrument = String(input.instrument || '').trim().slice(0, 100);
+    const studentPhone = String(input.studentPhone || '').trim().slice(0, 50);
+    const email = String(input.email || '').trim().slice(0, 200);
+    if (!fullName || !instrument || (!studentPhone && !email)) return res.status(400).json({ error: 'יש להזין שם, כלי נגינה וטלפון או דוא״ל' });
+    const diagnostic = input.diagnostic ? Number(input.diagnostic) : null;
+    const level = input.level ? Number(input.level) : null;
+    const row = { id: crypto.randomUUID(), created: new Date().toISOString(), fullName, age: String(input.age || '').trim().slice(0, 20), instrument, studentPhone, email, diagnostic: Number.isInteger(diagnostic) ? diagnostic : null, level: Number.isInteger(level) ? level : null, total: 0, scores: {}, slot: null, waitlist: false, status: 'פעיל' };
+    const { error } = await supabase.from('results').insert({ id: row.id, status: 'פעיל', lesson_slot_id: null, data: row, tenant_id: tenant.id });
+    if (error) return res.status(400).json({ error: error.message });
+    return res.status(201).json({ ok: true, student: row });
   }
   if (action === 'delete') {
     const { data: row, error: e1 } = await supabase.from('results').select('lesson_slot_id,status').eq('id', id).eq('tenant_id', tenant.id).single();
