@@ -79,32 +79,8 @@ module.exports = async function handler(req, res) {
         .in('id', removedSlotIds);
       if (resetError) return res.status(500).json({ error: 'לא הצלחנו לפנות את הקבוצות שנמחקו' });
     }
-    if (removedSlotIds.length) {
-      const { error: deleteSlotsError } = await supabase
-        .from('lesson_slots')
-        .delete()
-        .eq('tenant_id', tenant.id)
-        .in('id', removedSlotIds);
-      if (deleteSlotsError) return res.status(500).json({ error: 'מחיקת הקבוצות נכשלה' });
-    }
-    if (nextSlots.length) {
-      const existingCounts = new Map((currentSlots || []).map((item) => [item.id, item.booked_count]));
-      const slotRows = nextSlots.map((item) => ({
-        tenant_id: tenant.id,
-        id: item[0],
-        capacity: Number(item[5] || 8),
-        booked_count: existingCounts.get(item[0]) || 0,
-      }));
-      const { error: upsertSlotsError } = await supabase
-        .from('lesson_slots')
-        .upsert(slotRows, { onConflict: 'tenant_id,id' });
-      if (upsertSlotsError) return res.status(500).json({ error: 'שמירת הקבוצות נכשלה' });
-    }
-    const { error } = await supabase
-      .from('tenants')
-      .update({ name: name.trim(), logo: savedLogo || null, schedule })
-      .eq('id', tenant.id);
-    if (error) return res.status(500).json({ error: 'שמירת מערכת השעות נכשלה' });
+    const { error } = await supabase.rpc('update_tenant_settings', { p_tenant_id: tenant.id, p_name: name, p_logo: savedLogo, p_schedule: schedule });
+    if (error) return res.status(400).json({ error: error.message.includes('OCCUPIED_SLOT_REMOVAL') ? 'לא ניתן להסיר קבוצה שכבר משובצים אליה תלמידים' : error.message.includes('CAPACITY_BELOW_BOOKED') ? 'לא ניתן לקבוע מגבלה נמוכה ממספר התלמידים שכבר שובצו' : error.message });
     return res.status(200).json({ ok: true, unassignedCount });
   }
   if (action === 'create-student') {
