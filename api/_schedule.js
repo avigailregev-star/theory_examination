@@ -5,9 +5,9 @@ function parseScheduleText(text) {
   if (!lines.length) return schedule;
   lines.forEach((line, index) => {
     const parts = line.split(',').map((part) => part.trim());
-    if (parts.length < 4) throw new Error(`שורה ${index + 1}: יש להזין רמה, יום, שעה ושם מורה`);
+    if (parts.length < 3) throw new Error(`שורה ${index + 1}: יש להזין רמה, יום ושעה`);
     const [level, day, time, teacher, fifth, sixth] = parts;
-    if (!/^[1-7]$/.test(level) || !day || !time || !teacher) throw new Error(`שורה ${index + 1}: הפרטים אינם תקינים`);
+    if (!/^[1-7]$/.test(level) || !day || !time) throw new Error(`שורה ${index + 1}: יש להשלים רמה, יום ושעה`);
     const base = `${level}-${day}-${time}`.toLowerCase().replace(/[^a-z0-9\u0590-\u05ff]+/g, '-');
     let id = base, suffix = 2;
     while (ids.has(id)) id = `${base}-${suffix++}`;
