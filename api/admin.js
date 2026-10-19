@@ -27,7 +27,14 @@ module.exports = async function handler(req, res) {
       supabase.from('lesson_slots').select('*').eq('tenant_id', tenant.id),
     ]);
     if (e1 || e2) return res.status(500).json({ error: (e1 || e2).message });
-    return res.status(200).json({ tenant, results, slots });
+    const levelsBySlot = new Map(Object.entries(tenant.schedule || {}).flatMap(([level, lessons]) =>
+      Array.isArray(lessons) ? lessons.map((lesson) => [lesson[0], Number(level)]) : []));
+    const currentResults = (results || []).map((row) => ({ ...row, data: {
+      ...(row.data || {}),
+      slot: row.lesson_slot_id,
+      level: row.lesson_slot_id ? (levelsBySlot.get(row.lesson_slot_id) ?? row.data?.level ?? null) : (row.data?.level ?? null),
+    } }));
+    return res.status(200).json({ tenant, results: currentResults, slots });
   }
   if (action === 'settings') {
     let schedule;
@@ -127,17 +134,28 @@ module.exports = async function handler(req, res) {
     const destination = action === 'unassign' ? null : slot;
     const { data: row, error: findError } = await supabase.from('results').select('lesson_slot_id,status,data').eq('id', id).eq('tenant_id', tenant.id).single();
     if (findError || !row || row.status === 'נמחק') return res.status(404).json({ error: 'התוצאה לא נמצאה' });
+    const destinationLevel = destination == null ? null : Object.entries(tenant.schedule || {})
+      .find(([, lessons]) => Array.isArray(lessons) && lessons.some((lesson) => lesson[0] === destination))?.[0];
+    if (destination && !destinationLevel) return res.status(400).json({ error: 'המועד שנבחר אינו קיים במערכת השעות' });
+    let claimedDestination = false;
     if (destination && destination !== row.lesson_slot_id) {
       const { data: target } = await supabase.from('lesson_slots').select('booked_count,capacity').eq('tenant_id', tenant.id).eq('id', destination).single();
       if (!target) return res.status(400).json({ error: 'המועד שנבחר אינו קיים' });
       if (target.booked_count >= target.capacity) return res.status(409).json({ error: 'הקבוצה שנבחרה מלאה' });
       const { data: claimed, error: claimError } = await supabase.from('lesson_slots').update({ booked_count: target.booked_count + 1 }).eq('tenant_id', tenant.id).eq('id', destination).eq('booked_count', target.booked_count).select('id').maybeSingle();
       if (claimError || !claimed) return res.status(409).json({ error: 'הקבוצה התמלאה בזמן ההעברה' });
+      claimedDestination = true;
     }
-    if (row.lesson_slot_id && row.lesson_slot_id !== destination) await supabase.rpc('release_slot', { p_tenant_id: tenant.id, p_slot: row.lesson_slot_id });
-    const data = { ...(row.data || {}), slot: destination };
+    const data = { ...(row.data || {}), slot: destination, level: destinationLevel ? Number(destinationLevel) : null, waitlist: false };
     const { error } = await supabase.from('results').update({ lesson_slot_id: destination, data }).eq('id', id).eq('tenant_id', tenant.id);
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      if (claimedDestination) await supabase.rpc('release_slot', { p_tenant_id: tenant.id, p_slot: destination });
+      return res.status(400).json({ error: error.message });
+    }
+    if (row.lesson_slot_id) {
+      const { error: releaseError } = await supabase.rpc('release_slot', { p_tenant_id: tenant.id, p_slot: row.lesson_slot_id });
+      if (releaseError) return res.status(500).json({ error: 'השיבוץ נשמר, אך לא הצלחנו לעדכן את תפוסת הקבוצה הקודמת' });
+    }
     return res.status(200).json({ ok: true });
   }
   if (action === 'update-student') {
@@ -155,3 +173,4 @@ module.exports = async function handler(req, res) {
   }
   return res.status(400).json({ error: 'פעולה לא מוכרת' });
 };
+
