@@ -147,10 +147,12 @@ module.exports = async function handler(req, res) {
       claimedDestination = true;
     }
     const data = { ...(row.data || {}), slot: destination, level: destinationLevel ? Number(destinationLevel) : null, waitlist: false };
-    const { error } = await supabase.from('results').update({ lesson_slot_id: destination, data }).eq('id', id).eq('tenant_id', tenant.id);
-    if (error) {
+    let update = supabase.from('results').update({ lesson_slot_id: destination, data }).eq('id', id).eq('tenant_id', tenant.id);
+    update = row.lesson_slot_id == null ? update.is('lesson_slot_id', null) : update.eq('lesson_slot_id', row.lesson_slot_id);
+    const { data: updated, error } = await update.select('id').maybeSingle();
+    if (error || !updated) {
       if (claimedDestination) await supabase.rpc('release_slot', { p_tenant_id: tenant.id, p_slot: destination });
-      return res.status(400).json({ error: error.message });
+      return res.status(error ? 400 : 409).json({ error: error?.message || 'השיבוץ השתנה בינתיים. רעננו את הדף ונסו שוב.' });
     }
     if (row.lesson_slot_id) {
       const { error: releaseError } = await supabase.rpc('release_slot', { p_tenant_id: tenant.id, p_slot: row.lesson_slot_id });
